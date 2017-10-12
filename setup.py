@@ -14,6 +14,8 @@ setup(
     license='GPLv3',
     url='https://github.com/nejucomo/{}'.format(PACKAGE),
     install_requires=[
+        'pathlib2 >= 2.3',
+        'zcli >= 0.1',
     ],
 
     packages=find_packages(),
