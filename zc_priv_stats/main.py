@@ -27,6 +27,7 @@ def main(args=sys.argv[1:]):
 
     monetarybase = 0
     cumjscnt = 0
+    mbshielded = 0
     for block in block_iter(cli):
         blockstats = CounterDict()
 
@@ -42,6 +43,13 @@ def main(args=sys.argv[1:]):
                 blockstats['js-count'] += jscnt
                 cumjscnt += jscnt
 
+                for js in txinfo.vjoinsplit:
+                    shielding = zec2zat(js.vpub_old)
+                    unshielding = zec2zat(js.vpub_new)
+                    blockstats['mb-shielding'] += shielding
+                    blockstats['mb-unshielding'] += unshielding
+                    mbshielded += shielding - unshielding
+
                 category = categorize_transaction(
                     len(txinfo.vin),
                     len(txinfo.vout),
@@ -54,6 +62,7 @@ def main(args=sys.argv[1:]):
             hash=block.hash,
             monetary_base=monetarybase,
             cumulative_js_count=cumjscnt,
+            mb_shielded=mbshielded,
             **blockstats
         )
 
@@ -129,6 +138,11 @@ def dec2int(d):
     return int(ctx.to_integral_exact(d))
 
 
+def zec2zat(d):
+    """Convert a ZEC decimal to a ZAT integer."""
+    return dec2int(d * ZAT_PER_ZEC)
+
+
 class DictAttrs (object):
     @staticmethod
     def wrap(thing):
@@ -139,7 +153,10 @@ class DictAttrs (object):
         elif type(thing) is unicode:
             return thing.encode('utf8')
         elif type(thing) is decimal.Decimal:
-            return dec2int(thing)
+            try:
+                return dec2int(thing)
+            except decimal.Inexact:
+                return thing
         else:
             return thing
 
@@ -178,6 +195,9 @@ class CSVDBWriter (object):
         'cumulative-js-count',
         'coinbase',
         'monetary-base',
+        'mb-shielded',
+        'mb-shielding',
+        'mb-unshielding',
     ]
 
     def __init__(self, dbdir, startheight):
