@@ -1,11 +1,11 @@
 import sys
 import argparse
-from decimal import Decimal
+import decimal
 from pathlib2 import Path
 from zcli import zcashcli
 
 
-ZAT_PER_ZEC = Decimal('100000000')
+ZAT_PER_ZEC = 100000000
 
 
 def main(args=sys.argv[1:]):
@@ -21,9 +21,9 @@ def main(args=sys.argv[1:]):
     def get_txin_value(txin):
         tx = get_txinfo(txin.txid)
         txout = tx.vout[txin.vout]
-        return txout.valueZat / ZAT_PER_ZEC
+        return txout.valueZat
 
-    monetarybase = Decimal(0)
+    monetarybase = 0
     for block in block_iter(cli):
         blockstats = CounterDict()
 
@@ -73,7 +73,7 @@ def calculate_coinbase(
         height,
         halvinginterval=840000,
         slowstartinterval=20000,
-        basesubsidy=Decimal('12.5'),
+        basesubsidy=1250000000,
 ):
     if height < slowstartinterval / 2:
         return basesubsidy / slowstartinterval * height
@@ -120,6 +120,12 @@ def display_block_stats(block, blockstats, monetarybase):
     sys.stdout.write(output + '\n')
 
 
+def dec2int(d):
+    """Convert a decimal to an integer exactly, raise Exception otherwise."""
+    ctx = decimal.Context(traps=[decimal.Inexact])
+    return int(ctx.to_integral_exact(d))
+
+
 class DictAttrs (object):
     @staticmethod
     def wrap(thing):
@@ -129,6 +135,8 @@ class DictAttrs (object):
             return [DictAttrs.wrap(x) for x in thing]
         elif type(thing) is unicode:
             return thing.encode('utf8')
+        elif type(thing) is decimal.Decimal:
+            return dec2int(thing)
         else:
             return thing
 
@@ -136,7 +144,7 @@ class DictAttrs (object):
         self._d = d
 
     def __repr__(self):
-        return '<DictAddrs {!r}>'.format(self._d.keys())
+        return '<DictAddrs {!r}>'.format(self._d)
 
     def __getattr__(self, name):
         return DictAttrs.wrap(self._d[name])
@@ -147,7 +155,7 @@ class CounterDict (dict):
         return self.get(key, 0)
 
     def __setitem__(self, key, value):
-        assert type(value) in (int, Decimal), (key, value)
+        assert type(value) is int, (key, value)
         if value == 0:
             self.pop(key, None)
         else:
