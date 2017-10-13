@@ -26,6 +26,7 @@ def main(args=sys.argv[1:]):
         return txout.valueZat
 
     monetarybase = 0
+    cumjscnt = 0
     for block in block_iter(cli):
         blockstats = CounterDict()
 
@@ -39,6 +40,7 @@ def main(args=sys.argv[1:]):
 
                 jscnt = len(txinfo.vjoinsplit)
                 blockstats['js-count'] += jscnt
+                cumjscnt += jscnt
 
                 category = categorize_transaction(
                     len(txinfo.vin),
@@ -51,6 +53,7 @@ def main(args=sys.argv[1:]):
             height=block.height,
             hash=block.hash,
             monetary_base=monetarybase,
+            cumulative_js_count=cumjscnt,
             **blockstats
         )
 
@@ -172,6 +175,7 @@ class CSVDBWriter (object):
         'tx-unshielding',
         'tx-transparent',
         'js-count',
+        'cumulative-js-count',
         'coinbase',
         'monetary-base',
     ]
