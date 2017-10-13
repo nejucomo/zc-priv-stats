@@ -1,7 +1,11 @@
 import sys
 import argparse
+from decimal import Decimal
 from pathlib2 import Path
 from zcli import zcashcli
+
+
+ZAT_PER_ZEC = Decimal('100000000')
 
 
 def main(args=sys.argv[1:]):
@@ -11,40 +15,35 @@ def main(args=sys.argv[1:]):
     opts = parse_args(args)
     cli = zcashcli.ZcashCLI(opts.DATADIR)
 
+    def get_txinfo(txid):
+        return DictAttrs(cli.getrawtransaction(txid, 1))
+
+    def get_txin_value(txin):
+        tx = get_txinfo(txin.txid)
+        txout = tx.vout[txin.vout]
+        return txout.valueZat / ZAT_PER_ZEC
+
     accstats = CounterDict()
 
     for block in block_iter(cli):
         blockstats = CounterDict()
 
-        for txid in block.tx:
-            txinfo = DictAttrs(cli.getrawtransaction(txid, 1))
-            jscnt = len(txinfo.vjoinsplit)
-            if jscnt > 0:
-                blockstats['js-count'] += jscnt
-                if len(txinfo.vin) == 0:
-                    if len(txinfo.vout) == 0:
-                        blockstats['tx-fully-shielded'] += 1
-                    else:
-                        blockstats['tx-unshielding'] += 1
-                else:
-                    if len(txinfo.vout) == 0:
-                        blockstats['tx-shielding'] += 1
-                    else:
-                        blockstats['tx-truly-mixed'] += 1
-            else:
-                blockstats['tx-transparent'] += 1
+        for txinfo in map(get_txinfo, block.tx):
+            # Coinbase:
+            if 'coinbase' not in blockstats:
+                blockstats['coinbase'] = calculate_coinbase(cli, txinfo)
 
-        output = 'Block {0.height} {0.hash}'.format(block)
-        for statname in [
-                'tx-fully-shielded',
-                'tx-truly-mixed',
-                'tx-shielding',
-                'tx-unshielding',
-                'tx-transparent',
-                'js-count',
-        ]:
-            output += '; {}={}'.format(statname, blockstats[statname])
-        sys.stdout.write(output + '\n')
+            jscnt = len(txinfo.vjoinsplit)
+            blockstats['js-count'] += jscnt
+
+            category = categorize_transaction(
+                len(txinfo.vin),
+                len(txinfo.vout),
+                jscnt,
+            )
+            blockstats[category] += 1
+
+        display_block_stats(block, blockstats, accstats['coinbase'])
 
         for (k, v) in blockstats.iteritems():
             accstats[k] += v
@@ -70,6 +69,43 @@ def block_iter(cli):
         block = DictAttrs.wrap(cli.getblock(bhash))
         yield block
         bhash = block.nextblockhash
+
+
+def calculate_coinbase(cli, txinfo):
+    outzat = sum([txo.valueZat for txo in txinfo.vout])
+    return outzat / ZAT_PER_ZEC
+
+
+def categorize_transaction(vins, vouts, jscnt):
+    if jscnt > 0:
+        if vins > 0:
+            if vouts > 0:
+                return 'tx-truly-mixed'
+            else:
+                return 'tx-shielding'
+        else:
+            if vouts > 0:
+                return 'tx-unshielding'
+            else:
+                return 'tx-fully-shielded'
+    else:
+        return 'tx-transparent'
+
+
+def display_block_stats(block, blockstats, monetarybase):
+    output = 'Block {0.height} {0.hash}'.format(block)
+    for statname in [
+            'tx-fully-shielded',
+            'tx-truly-mixed',
+            'tx-shielding',
+            'tx-unshielding',
+            'tx-transparent',
+            'js-count',
+            'coinbase',
+    ]:
+        output += '; {}={}'.format(statname, blockstats[statname])
+    output += '; monetary-base={}'.format(monetarybase)
+    sys.stdout.write(output + '\n')
 
 
 class DictAttrs (object):
@@ -99,6 +135,7 @@ class CounterDict (dict):
         return self.get(key, 0)
 
     def __setitem__(self, key, value):
+        assert type(value) in (int, Decimal), (key, value)
         if value == 0:
             self.pop(key, None)
         else:
