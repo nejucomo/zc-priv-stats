@@ -23,15 +23,16 @@ def main(args=sys.argv[1:]):
         txout = tx.vout[txin.vout]
         return txout.valueZat / ZAT_PER_ZEC
 
-    accstats = CounterDict()
-
+    monetarybase = Decimal(0)
     for block in block_iter(cli):
         blockstats = CounterDict()
 
         for txinfo in map(get_txinfo, block.tx):
             # Coinbase:
             if 'coinbase' not in blockstats:
-                blockstats['coinbase'] = calculate_coinbase(cli, txinfo)
+                coinbase = calculate_coinbase(block.height)
+                blockstats['coinbase'] = coinbase
+                monetarybase += coinbase
 
             jscnt = len(txinfo.vjoinsplit)
             blockstats['js-count'] += jscnt
@@ -43,10 +44,7 @@ def main(args=sys.argv[1:]):
             )
             blockstats[category] += 1
 
-        display_block_stats(block, blockstats, accstats['coinbase'])
-
-        for (k, v) in blockstats.iteritems():
-            accstats[k] += v
+        display_block_stats(block, blockstats, monetarybase)
 
 
 def parse_args(args):
@@ -71,9 +69,23 @@ def block_iter(cli):
         bhash = block.nextblockhash
 
 
-def calculate_coinbase(cli, txinfo):
-    outzat = sum([txo.valueZat for txo in txinfo.vout])
-    return outzat / ZAT_PER_ZEC
+def calculate_coinbase(
+        height,
+        halvinginterval=840000,
+        slowstartinterval=20000,
+        basesubsidy=Decimal('12.5'),
+):
+    if height < slowstartinterval / 2:
+        return basesubsidy / slowstartinterval * height
+    elif height < slowstartinterval:
+        return basesubsidy / slowstartinterval * (height + 1)
+    else:
+        assert height > slowstartinterval
+        halvings = (height - slowstartinterval / 2) / halvinginterval
+        if halvings >= 64:
+            return 0
+        else:
+            return basesubsidy >> halvings
 
 
 def categorize_transaction(vins, vouts, jscnt):
