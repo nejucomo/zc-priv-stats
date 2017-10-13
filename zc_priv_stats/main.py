@@ -209,10 +209,7 @@ class CSVDBWriter (object):
 
         path = self._dbdir / 'db{:08}.csv'.format(self._height)
         self._writer = CSVDictWriterCloser(
-            MultWriter(
-                path.open('wb'),
-                sys.stdout,
-            ),
+            TeeWriter(path.open('wb')),
             self.FIELDS,
         )
 
@@ -231,15 +228,14 @@ class CSVDictWriterCloser (csv.DictWriter):
         self._f.close()
 
 
-class MultWriter (object):
-    def __init__(self, *fs):
-        self._fs = fs
+class TeeWriter (object):
+    def __init__(self, f):
+        self._f = f
 
     def write(self, buf):
-        for f in self._fs:
+        for f in [self._f, sys.stdout]:
             f.write(buf)
             f.flush()
 
     def close(self):
-        for f in self._fs:
-            f.close()
+        self._f.close()
