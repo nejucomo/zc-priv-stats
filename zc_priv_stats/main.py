@@ -108,7 +108,7 @@ def calculate_coinbase(
     elif height < slowstartinterval:
         return basesubsidy / slowstartinterval * (height + 1)
     else:
-        assert height > slowstartinterval
+        assert height >= slowstartinterval
         halvings = (height - slowstartinterval / 2) / halvinginterval
         if halvings >= 64:
             return 0
