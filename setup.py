@@ -15,6 +15,7 @@ setup(
     license='GPLv3',
     url='https://github.com/nejucomo/{}'.format(PACKAGE),
     install_requires=[
+        'matplotlib >= 2.0.2',
         'pathlib2 >= 2.3',
         'zcli >= 0.1',
     ],
@@ -23,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             '{} = {}.main:main'.format(PACKAGE, MODULE),
+            '{}-plots = {}.plot:main'.format(PACKAGE, MODULE),
         ],
     }
 )
