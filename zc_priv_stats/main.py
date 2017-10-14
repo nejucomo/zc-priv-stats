@@ -1,4 +1,5 @@
 import sys
+import re
 import csv
 import argparse
 import decimal
@@ -15,7 +16,7 @@ def main(args=sys.argv[1:]):
     """
     opts = parse_args(args)
     cli = zcashcli.ZcashCLI(opts.DATADIR)
-    db = CSVDBWriter(opts.STATSDIR, startheight=0)
+    db = CSVDBWriter(opts.STATSDIR)
 
     def get_txinfo(txid):
         return DictAttrs(cli.getrawtransaction(txid, 1))
@@ -25,10 +26,10 @@ def main(args=sys.argv[1:]):
         txout = tx.vout[txin.vout]
         return txout.valueZat
 
-    monetarybase = 0
-    cumjscnt = 0
-    mbshielded = 0
-    for block in block_iter(cli):
+    monetarybase = db.lastrow['monetary-base']
+    cumjscnt = db.lastrow['cumulative-js-count']
+    mbshielded = db.lastrow['mb-shielded']
+    for block in block_iter(cli, db.lastrow['height'] + 1):
         blockstats = CounterDict()
 
         if block.height > 0:
@@ -89,8 +90,8 @@ def parse_args(args):
     return p.parse_args(args)
 
 
-def block_iter(cli):
-    bhash = cli.getblockhash(0)
+def block_iter(cli, startheight):
+    bhash = cli.getblockhash(startheight)
     while bhash is not None:
         block = DictAttrs.wrap(cli.getblock(bhash))
         yield block
@@ -200,42 +201,68 @@ class CSVDBWriter (object):
         'mb-unshielding',
     ]
 
-    def __init__(self, dbdir, startheight):
-        assert startheight == 0, startheight
+    def __init__(self, dbdir):
         self._dbdir = dbdir
-        self._height = startheight
         self._writer = None
+        self._refresh()
 
     def append_row(self, **fields):
         height = fields['height']
-        assert self._height == height, (self._height, height)
-
         if self._is_boundary(height):
-            self._open_writer()
+            self._open_writer(height)
 
-        self._writer.writerow(
-            dict([
-                (k.replace('_', '-'), v)
-                for (k, v)
-                in fields.iteritems()
-            ]),
-        )
-        self._height += 1
+        row = dict([
+            (k.replace('_', '-'), v)
+            for (k, v)
+            in fields.iteritems()
+        ])
+        self._writer.writerow(row)
 
     # Private:
     _ROWS_PER_FILE = 1000
+    _FILENAME_RGX = re.compile(r'^db[0-9]{8}.csv$')
 
-    def _open_writer(self):
-        assert self._is_boundary(self._height)
+    def _refresh(self):
+        """Refresh the database state to prepare for appending.
 
+        Delete the last two db files, in case there was a
+        chain-reorg. Then, if there are any db files, load the last row
+        to retrieve accumulative values.
+        """
+        if not self._dbdir.is_dir():
+            print 'mkdir {!r}'.format(self._dbdir)
+            self._dbdir.mkdir()
+
+        dbfiles = sorted([
+            n
+            for n
+            in self._dbdir.iterdir()
+            if self._FILENAME_RGX.match(n.name)
+        ])
+        for p in dbfiles[-2:]:
+            print 'rm {!r}'.format(p)
+            p.unlink()
+
+        lastrow = CounterDict({'height': -1})
+        if len(dbfiles) > 2:
+            with dbfiles[-3].open('rb') as f:
+                for row in csv.DictReader(f, self.FIELDS):
+                    lastrow = row
+            lastrow = CounterDict(
+                (f, int(v) if f != 'hash' else v)
+                for (f, v)
+                in lastrow.iteritems()
+            )
+
+        self.lastrow = lastrow
+
+    def _open_writer(self, height):
         if self._writer is not None:
             self._writer.close()
 
-        path = self._dbdir / 'db{:08}.csv'.format(self._height)
-        self._writer = CSVDictWriterCloser(
-            TeeWriter(path.open('wb')),
-            self.FIELDS,
-        )
+        path = self._dbdir / 'db{:08}.csv'.format(height)
+        print 'Writing {!r}'.format(path)
+        self._writer = CSVDictWriterCloser(path.open('wb'), self.FIELDS)
 
     @classmethod
     def _is_boundary(cls, height):
