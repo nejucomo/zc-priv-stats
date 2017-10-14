@@ -6,6 +6,7 @@ import argparse
 import decimal
 from pathlib2 import Path
 from zcli import zcashcli
+from zc_priv_stats.fields import FIELDS
 
 
 ZAT_PER_ZEC = 100000000
@@ -189,23 +190,6 @@ class CounterDict (dict):
 
 
 class CSVDBWriter (object):
-    FIELDS = [
-        'height',
-        'hash',
-        'tx-fully-shielded',
-        'tx-truly-mixed',
-        'tx-shielding',
-        'tx-unshielding',
-        'tx-transparent',
-        'js-count',
-        'cumulative-js-count',
-        'coinbase',
-        'monetary-base',
-        'mb-shielded',
-        'mb-shielding',
-        'mb-unshielding',
-    ]
-
     def __init__(self, dbdir):
         self._dbdir = dbdir
         self._writer = None
@@ -253,7 +237,7 @@ class CSVDBWriter (object):
             dbpath = dbfiles[-3]
             print 'Scanning {!r}'.format(str(dbpath))
             with dbpath.open('rb') as f:
-                for row in csv.DictReader(f, self.FIELDS):
+                for row in csv.DictReader(f, FIELDS):
                     lastrow = row
             lastrow = CounterDict(
                 (f, int(v) if f != 'hash' else v)
@@ -268,7 +252,7 @@ class CSVDBWriter (object):
             self._writer.close()
 
         path = self._dbdir / 'db{:08}.csv'.format(height)
-        self._writer = CSVDictWriterCloser(path.open('wb'), self.FIELDS)
+        self._writer = CSVDictWriterCloser(path.open('wb'), FIELDS)
 
     @classmethod
     def _is_boundary(cls, height):
