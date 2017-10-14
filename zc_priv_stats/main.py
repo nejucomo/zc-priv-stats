@@ -1,6 +1,7 @@
 import sys
 import re
 import csv
+import time
 import argparse
 import decimal
 from pathlib2 import Path
@@ -26,10 +27,14 @@ def main(args=sys.argv[1:]):
         txout = tx.vout[txin.vout]
         return txout.valueZat
 
+    height = db.lastrow['height'] + 1
+    print 'Starting at block height {!r}...'.format(height)
+
     monetarybase = db.lastrow['monetary-base']
     cumjscnt = db.lastrow['cumulative-js-count']
     mbshielded = db.lastrow['mb-shielded']
-    for block in block_iter(cli, db.lastrow['height'] + 1):
+
+    for block in block_iter(cli, height):
         blockstats = CounterDict()
 
         if block.height > 0:
@@ -245,7 +250,9 @@ class CSVDBWriter (object):
 
         lastrow = CounterDict({'height': -1})
         if len(dbfiles) > 2:
-            with dbfiles[-3].open('rb') as f:
+            dbpath = dbfiles[-3]
+            print 'Scanning {!r}'.format(str(dbpath))
+            with dbpath.open('rb') as f:
                 for row in csv.DictReader(f, self.FIELDS):
                     lastrow = row
             lastrow = CounterDict(
@@ -261,7 +268,6 @@ class CSVDBWriter (object):
             self._writer.close()
 
         path = self._dbdir / 'db{:08}.csv'.format(height)
-        print 'Writing {!r}'.format(str(path))
         self._writer = CSVDictWriterCloser(path.open('wb'), self.FIELDS)
 
     @classmethod
@@ -272,11 +278,17 @@ class CSVDBWriter (object):
 class CSVDictWriterCloser (csv.DictWriter):
     def __init__(self, f, fieldnames):
         self._f = f
+        self._starttime = time.time()
         csv.DictWriter.__init__(self, f, fieldnames, restval=0)
         self.writeheader()
 
     def close(self):
         self._f.close()
+        stoptime = time.time()
+        print 'Wrote {!r} in {:.2f} seconds.'.format(
+            self._f.name,
+            stoptime - self._starttime,
+        )
 
 
 class TeeWriter (object):
