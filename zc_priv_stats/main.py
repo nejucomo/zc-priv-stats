@@ -276,6 +276,8 @@ class CSVDBWriter (object):
 
 
 class CSVDictWriterCloser (csv.DictWriter):
+    _first_starttime = time.time()
+
     def __init__(self, f, fieldnames):
         self._f = f
         self._starttime = time.time()
@@ -285,9 +287,10 @@ class CSVDictWriterCloser (csv.DictWriter):
     def close(self):
         self._f.close()
         stoptime = time.time()
-        print 'Wrote {!r} in {:.2f} seconds.'.format(
+        print 'Wrote {!r} in {:.2f} seconds; total {:.2f}seconds'.format(
             self._f.name,
             stoptime - self._starttime,
+            stoptime - self._first_starttime,
         )
 
 
