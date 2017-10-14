@@ -230,7 +230,7 @@ class CSVDBWriter (object):
         to retrieve accumulative values.
         """
         if not self._dbdir.is_dir():
-            print 'mkdir {!r}'.format(self._dbdir)
+            print 'mkdir {!r}'.format(str(self._dbdir))
             self._dbdir.mkdir()
 
         dbfiles = sorted([
@@ -240,7 +240,7 @@ class CSVDBWriter (object):
             if self._FILENAME_RGX.match(n.name)
         ])
         for p in dbfiles[-2:]:
-            print 'rm {!r}'.format(p)
+            print 'rm {!r}'.format(str(p))
             p.unlink()
 
         lastrow = CounterDict({'height': -1})
@@ -261,7 +261,7 @@ class CSVDBWriter (object):
             self._writer.close()
 
         path = self._dbdir / 'db{:08}.csv'.format(height)
-        print 'Writing {!r}'.format(path)
+        print 'Writing {!r}'.format(str(path))
         self._writer = CSVDictWriterCloser(path.open('wb'), self.FIELDS)
 
     @classmethod
