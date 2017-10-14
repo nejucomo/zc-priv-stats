@@ -3,7 +3,8 @@
 from setuptools import setup, find_packages
 
 
-PACKAGE = 'zc_priv_stats'
+PACKAGE = 'zc-priv-stats'
+MODULE = PACKAGE.replace('-', '_')
 
 setup(
     name=PACKAGE,
@@ -21,10 +22,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            '{} = {}.main:main'.format(
-                PACKAGE.replace('_', '-'),
-                PACKAGE,
-            )
+            '{} = {}.main:main'.format(PACKAGE, MODULE),
         ],
     }
 )
