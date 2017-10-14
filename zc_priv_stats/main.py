@@ -5,9 +5,7 @@ from pathlib2 import Path
 from zcli import zcashcli
 from zc_priv_stats.ctrdict import CounterDict
 from zc_priv_stats.db import DBWriter
-
-
-ZAT_PER_ZEC = 100000000
+from zc_priv_stats.zec import ZAT_PER_ZEC
 
 
 def main(args=sys.argv[1:]):
