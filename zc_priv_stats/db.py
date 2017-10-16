@@ -1,9 +1,9 @@
 import re
 import csv
-import time
 from decimal import Decimal
 from zc_priv_stats.fields import FIELDS
 from zc_priv_stats.ctrdict import CounterDict
+from zc_priv_stats.optimer import OperationTimer
 
 
 class DBWriter (object):
@@ -71,15 +71,16 @@ class TopRecDB (object):
     def __init__(self, dbdir):
         self.table = CounterDict()
         self._dbdir = dbdir
+        self._optimer = OperationTimer()
         self._refresh()
 
     def write_table(self, height):
         path = self._dbdir / 'toprec-{:08}.tab'.format(height)
-        print 'Writing: {!r}'.format(str(path))
         with path.open('wb') as f:
             pairs = sorted(self.table.iteritems(), key=lambda t: t[1])
             for (addr, value) in pairs:
                 f.write('{}: {}\n'.format(addr, value))
+        print 'Wrote {!r}; {}'.format(str(path), self._optimer.tick())
 
     def _refresh(self):
         path = _refresh_dbdata(self._dbdir, _TOPREC_FILENAME_RGX)
@@ -97,22 +98,15 @@ _TOPREC_FILENAME_RGX = re.compile(r'^toprec-[0-9]{8}.tab$')
 
 
 class _CSVWriter (csv.DictWriter):
-    _first_starttime = time.time()
-
     def __init__(self, f, fieldnames):
         self._f = f
-        self._starttime = time.time()
+        self._optimer = OperationTimer()
         csv.DictWriter.__init__(self, f, fieldnames, restval=0)
         self.writeheader()
 
     def close(self):
         self._f.close()
-        stoptime = time.time()
-        print 'Wrote {!r} in {:.2f} seconds; total {:.2f}seconds'.format(
-            self._f.name,
-            stoptime - self._starttime,
-            stoptime - self._first_starttime,
-        )
+        print 'Wrote {!r}; {}'.format(self._f.name, self._optimer.tick())
 
 
 class _CSVReader (csv.DictReader):
