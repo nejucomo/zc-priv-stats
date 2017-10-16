@@ -13,7 +13,7 @@ def main(args=sys.argv[1:]):
     cs = ChainScanner(opts.DATADIR)
     db = TopRecDB(opts.STATSDIR)
 
-    for block in cs.block_iter(1):
+    for block in cs.block_iter(db.startheight):
         for tx in map(cs.get_txinfo, block.tx):
             for txo in tx.vout:
                 try:

@@ -70,6 +70,7 @@ class DBReader (object):
 class TopRecDB (object):
     def __init__(self, dbdir):
         self.table = CounterDict()
+        self.startheight = 1
         self._dbdir = dbdir
         self._optimer = OperationTimer()
         self._refresh()
