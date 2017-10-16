@@ -10,7 +10,7 @@ class OperationTimer (object):
         last = self._last
         now = time.time()
         self._last = now
-        return 'Op: {.2f} seconds; Runtime: {.2f} seconds'.format(
+        return 'Op: {:.2f} seconds; Runtime: {:.2f} seconds'.format(
             now - last,
             now - self._inittime,
         )
