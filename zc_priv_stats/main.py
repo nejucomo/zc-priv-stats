@@ -1,11 +1,10 @@
 import sys
 import argparse
-import decimal
 from pathlib2 import Path
-from zcli import zcashcli
+from zc_priv_stats.chainscanner import ChainScanner
 from zc_priv_stats.ctrdict import CounterDict
 from zc_priv_stats.db import DBWriter
-from zc_priv_stats.zec import ZAT_PER_ZEC
+from zc_priv_stats.numconv import zec2zat
 
 
 def main(args=sys.argv[1:]):
@@ -13,16 +12,8 @@ def main(args=sys.argv[1:]):
     Calculate privacy statistics in the Zcash blockchain.
     """
     opts = parse_args(args)
-    cli = zcashcli.ZcashCLI(opts.DATADIR)
+    cs = ChainScanner(opts.DATADIR)
     db = DBWriter(opts.STATSDIR)
-
-    def get_txinfo(txid):
-        return DictAttrs(cli.getrawtransaction(txid, 1))
-
-    def get_txin_value(txin):
-        tx = get_txinfo(txin.txid)
-        txout = tx.vout[txin.vout]
-        return txout.valueZat
 
     height = db.lastrow['height'] + 1
     print 'Starting at block height {!r}...'.format(height)
@@ -31,11 +22,11 @@ def main(args=sys.argv[1:]):
     cumjscnt = db.lastrow['cumulative-js-count']
     mbshielded = db.lastrow['mb-shielded']
 
-    for block in block_iter(cli, height):
+    for block in cs.block_iter(height):
         blockstats = CounterDict()
 
         if block.height > 0:
-            for txinfo in map(get_txinfo, block.tx):
+            for txinfo in map(cs.get_txinfo, block.tx):
                 # Coinbase:
                 if 'coinbase' not in blockstats:
                     coinbase = calculate_coinbase(block.height)
@@ -92,14 +83,6 @@ def parse_args(args):
     return p.parse_args(args)
 
 
-def block_iter(cli, startheight):
-    bhash = cli.getblockhash(startheight)
-    while bhash is not None:
-        block = DictAttrs.wrap(cli.getblock(bhash))
-        yield block
-        bhash = block.nextblockhash
-
-
 def calculate_coinbase(
         height,
         halvinginterval=840000,
@@ -133,41 +116,3 @@ def categorize_transaction(vins, vouts, jscnt):
                 return 'tx-fully-shielded'
     else:
         return 'tx-transparent'
-
-
-def dec2int(d):
-    """Convert a decimal to an integer exactly, raise Exception otherwise."""
-    ctx = decimal.Context(traps=[decimal.Inexact])
-    return int(ctx.to_integral_exact(d))
-
-
-def zec2zat(d):
-    """Convert a ZEC decimal to a ZAT integer."""
-    return dec2int(d * ZAT_PER_ZEC)
-
-
-class DictAttrs (object):
-    @staticmethod
-    def wrap(thing):
-        if type(thing) is dict:
-            return DictAttrs(thing)
-        elif type(thing) is list:
-            return [DictAttrs.wrap(x) for x in thing]
-        elif type(thing) is unicode:
-            return thing.encode('utf8')
-        elif type(thing) is decimal.Decimal:
-            try:
-                return dec2int(thing)
-            except decimal.Inexact:
-                return thing
-        else:
-            return thing
-
-    def __init__(self, d):
-        self._d = d
-
-    def __repr__(self):
-        return '<DictAddrs {!r}>'.format(self._d)
-
-    def __getattr__(self, name):
-        return DictAttrs.wrap(self._d[name])

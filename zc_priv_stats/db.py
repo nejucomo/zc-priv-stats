@@ -48,7 +48,7 @@ class DBWriter (object):
             dbpath = dbfiles[-3]
             print 'Scanning {!r}'.format(str(dbpath))
             with dbpath.open('rb') as f:
-                for row in csv.csv.DictReader(f, FIELDS):
+                for row in csv.DictReader(f, FIELDS):
                     lastrow = row
             lastrow = CounterDict(
                 (f, int(v) if f != 'hash' else v)

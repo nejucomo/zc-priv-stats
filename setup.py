@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             '{} = {}.main:main'.format(PACKAGE, MODULE),
             '{}-plots = {}.plot:main'.format(PACKAGE, MODULE),
+            '{}-toprec = {}.toprec:main'.format(PACKAGE, MODULE),
         ],
     }
 )
