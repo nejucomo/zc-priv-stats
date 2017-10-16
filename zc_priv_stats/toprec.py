@@ -3,17 +3,15 @@ import argparse
 from decimal import Decimal
 from pathlib2 import Path
 from zc_priv_stats.chainscanner import ChainScanner
-from zc_priv_stats.ctrdict import CounterDict
+from zc_priv_stats.db import TopRecDB
 from zc_priv_stats.numconv import ZAT_PER_ZEC
 
 
 def main(args=sys.argv[1:]):
     """Calculate top receiver addresses."""
     opts = parse_args(args)
-    resultpath = opts.STATSDIR / 'toprec'
     cs = ChainScanner(opts.DATADIR)
-
-    toprec = CounterDict()
+    db = TopRecDB(opts.STATSDIR)
 
     for block in cs.block_iter(1):
         for tx in map(cs.get_txinfo, block.tx):
@@ -24,31 +22,10 @@ def main(args=sys.argv[1:]):
                     e.args += (txo,)
                     raise
 
-                toprec[address] += txo.valueZat
+                db.table[address] += Decimal(txo.valueZat) / ZAT_PER_ZEC
 
         if block.height % 1000 == 0:
-            print 'Writing info as of height {} to: {!r}'.format(
-                block.height,
-                str(resultpath),
-            )
-            with resultpath.open('wb') as f:
-                f.write(
-                    'As of height {}, top {} receivers:\n  {}\n'.format(
-                        block.height,
-                        len(toprec),
-                        '\n  '.join([
-                            '{}: {}'.format(
-                                addr,
-                                Decimal(value) / ZAT_PER_ZEC,
-                            )
-                            for (addr, value)
-                            in sorted(
-                                toprec.iteritems(),
-                                key=lambda t: t[1],
-                            )
-                        ]),
-                    ),
-                )
+            db.write_table(block.height)
 
 
 def parse_args(args):

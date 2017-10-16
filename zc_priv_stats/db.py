@@ -1,6 +1,7 @@
 import re
 import csv
 import time
+from decimal import Decimal
 from zc_priv_stats.fields import FIELDS
 from zc_priv_stats.ctrdict import CounterDict
 
@@ -33,36 +34,21 @@ class DBWriter (object):
         chain-reorg. Then, if there are any db files, load the last row
         to retrieve accumulative values.
         """
-        if not self._dbdir.is_dir():
-            print 'mkdir {!r}'.format(str(self._dbdir))
-            self._dbdir.mkdir()
-
-        dbfiles = _get_sorted_db_files(self._dbdir)
-
-        for p in dbfiles[-2:]:
-            print 'rm {!r}'.format(str(p))
-            p.unlink()
+        dbpath = _refresh_dbdata(self._dbdir, _STATS_FILENAME_RGX)
 
         lastrow = CounterDict({'height': -1})
-        if len(dbfiles) > 2:
-            dbpath = dbfiles[-3]
+        if dbpath is not None:
             print 'Scanning {!r}'.format(str(dbpath))
             with dbpath.open('rb') as f:
-                for row in csv.DictReader(f, FIELDS):
+                for row in _CSVReader(f):
                     lastrow = row
-            lastrow = CounterDict(
-                (f, int(v) if f != 'hash' else v)
-                for (f, v)
-                in lastrow.iteritems()
-            )
-
         self.lastrow = lastrow
 
     def _open_writer(self, height):
         if self._writer is not None:
             self._writer.close()
 
-        path = self._dbdir / 'db{:08}.csv'.format(height)
+        path = self._dbdir / 'db-{:08}.csv'.format(height)
         self._writer = _CSVWriter(path.open('wb'), FIELDS)
 
     @classmethod
@@ -81,7 +67,35 @@ class DBReader (object):
                     yield row
 
 
+class TopRecDB (object):
+    def __init__(self, dbdir):
+        self.table = CounterDict()
+        self._dbdir = dbdir
+        self._refresh()
+
+    def write_table(self, height):
+        path = self._dbdir / 'toprec-{:08}.tab'.format(height)
+        print 'Writing: {!r}'.format(str(path))
+        with path.open('wb') as f:
+            pairs = sorted(self.table.iteritems(), key=lambda t: t[1])
+            for (addr, value) in pairs:
+                f.write('{}: {}\n'.format(addr, value))
+
+    def _refresh(self):
+        path = _refresh_dbdata(self._dbdir, _TOPREC_FILENAME_RGX)
+        if path is not None:
+            print 'Loading: {!r}'.format(str(path))
+            with path.open('rb') as f:
+                for line in f:
+                    [addr, zectxt] = f.strip().split(': ')
+                    self.table[addr] = Decimal(zectxt)
+
+
 # Private
+_STATS_FILENAME_RGX = re.compile(r'^db-[0-9]{8}.csv$')
+_TOPREC_FILENAME_RGX = re.compile(r'^toprec-[0-9]{8}.tab$')
+
+
 class _CSVWriter (csv.DictWriter):
     _first_starttime = time.time()
 
@@ -116,12 +130,27 @@ class _CSVReader (csv.DictReader):
         )
 
 
-def _get_sorted_db_files(dbdir):
-    _FILENAME_RGX = re.compile(r'^db[0-9]{8}.csv$')
-
+def _get_sorted_db_files(dbdir, filenamergx):
     return sorted([
         n
         for n
         in dbdir.iterdir()
-        if _FILENAME_RGX.match(n.name)
+        if filenamergx.match(n.name)
     ])
+
+
+def _refresh_dbdata(dbdir, filenamergx):
+    if not dbdir.is_dir():
+        print 'mkdir {!r}'.format(str(dbdir))
+        dbdir.mkdir()
+
+    dbfiles = _get_sorted_db_files(dbdir, filenamergx)
+
+    for p in dbfiles[-2:]:
+        print 'rm {!r}'.format(str(p))
+        p.unlink()
+
+    if len(dbfiles) > 2:
+        return dbfiles[-3]
+    else:
+        return None
