@@ -18,9 +18,22 @@ def main(args=sys.argv[1:]):
             for txo in tx.vout:
                 try:
                     [address] = txo.scriptPubKey.addresses
+                except KeyError as e:
+                    asm = txo.scriptPubKey.asm
+                    if asm.startswith('OP_RETURN '):
+                        print 'Skipping {} OP_RETURN {!r}'.format(
+                            tx.txid,
+                            asm[10:].decode('hex'),
+                        )
+                    else:
+                        print 'Warning - Skipping atypical TXO: {!r}'.format(
+                            txo
+                        )
+                    continue
                 except ValueError as e:
-                    e.args += (txo,)
-                    raise
+                    print 'Warning - Skipping atypical TXO: {!r}'.format(txo)
+                    print 'Weird # of addresses; {}'.format(e)
+                    continue
 
                 db.table[address] += Decimal(txo.valueZat) / ZAT_PER_ZEC
 
