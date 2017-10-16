@@ -9,15 +9,20 @@ class ChainScanner (object):
     def block_iter(self, startheight):
         bhash = self._zcli.getblockhash(startheight)
         while bhash is not None:
-            block = DictAttrs.wrap(self._zcli.getblock(bhash))
+            block = DictAttrs(
+                self._zcli.getblock(bhash),
+                '<block {!r}>'.format(bhash),
+            )
             yield block
             bhash = block.nextblockhash
 
     def get_txinfo(self, txid):
-        return DictAttrs(self._zcli.getrawtransaction(txid, 1))
+        return DictAttrs(
+            self._zcli.getrawtransaction(txid, 1),
+            '<txn {!r}>'.format(txid),
+        )
 
     def get_txin_value(self, txin):
         tx = self.get_txinfo(txin.txid)
         txout = tx.vout[txin.vout]
         return txout.valueZat
-
