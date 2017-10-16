@@ -88,8 +88,9 @@ class TopRecDB (object):
             print 'Loading: {!r}'.format(str(path))
             with path.open('rb') as f:
                 for line in f:
-                    [addr, zectxt] = f.strip().split(': ')
+                    [addr, zectxt] = line.strip().split(': ')
                     self.table[addr] = Decimal(zectxt)
+                self.startheight = int(str(path)[7:-4])
 
 
 # Private
